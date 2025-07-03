@@ -1,107 +1,130 @@
-Automated Gait-Based Human Identification System
+#### This repository has become incompatible with the latest and recommended version of Tensorflow 2.0 Instead of refactoring this code painfully, I created a new fresh repository with some additional features like:
+- #### Training code for smaller model based on MobilenetV2.
+- #### Visualisation of predictions (heatmaps, pafs) in Tensorboard.
+- #### Additional scripts to convert and test models for Tensorflow Lite.
 
-This project identifies individuals based on their walking patterns using pose estimation and machine learning models. It processes webcam video input in real-time and detects human gait structure using a pre-trained deep learning model.
-
----
-
-Project Structure
-
-```
-gait-identification/
-│
-├── model/
-│   └── keras/
-│       └── model.h5               # Pretrained pose estimation model
-│
-├── config                        # Configuration file (for config_reader.py)
-├── utils/                        # Contains util.py and color mappings
-├── processing.py                 # Contains extract_parts() and draw()
-├── config_reader.py              # Loads the config and model parameters
-├── main.py                       # (Rename your main script if needed)
-├── requirements.txt
-└── README.md
-```
+#### Here is the link to the new repo: [tensorflow_Realtime_Multi-Person_Pose_Estimation](https://github.com/michalfaber/tensorflow_Realtime_Multi-Person_Pose_Estimation)
 
 ---
 
-System Requirements
+# Realtime Multi-Person Pose Estimation (DEPRECATED)
+This is a keras version of [Realtime Multi-Person Pose Estimation](https://github.com/ZheC/Realtime_Multi-Person_Pose_Estimation) project  
 
-- Python 3.7+
-- Webcam-enabled system (USB or built-in)
-- OpenCV support
+## Introduction
+Code repo for reproducing [2017 CVPR](https://arxiv.org/abs/1611.08050) paper using keras.  
 
----
+This is a new improved version. The main objective was to remove
+dependency on separate c++ server which besides the complexity
+of compiling also contained some bugs... and was very slow.
+The old version utilizing [rmpe_dataset_server](https://github.com/michalfaber/rmpe_dataset_server) is
+still available under the tag [v0.1](https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/releases/tag/v0.1) if you really would like to take a look.
 
-Required Python Libraries
+## Results
 
-Create a `requirements.txt` with:
+<p align="center">
+<img src="https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/blob/master/readme/dance.gif", width="720">
+</p>
 
-```
-opencv-python
-numpy
-scipy
-configobj
-```
+<div align="center">
+<img src="https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/blob/master/sample_images/ski.jpg", width="300", height="300">
+&nbsp;
+<img src="https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/blob/master/readme/result.png", width="300", height="300">
+</div>
 
-Then install:
 
-```bash
-pip install -r requirements.txt
-```
+## Contents
+1. [Converting caffe model](#converting-caffe-model-to-keras-model)
+2. [Testing](#testing-steps)
+3. [Training](#training-steps)
+3. [Changes](#changes)
 
----
+## Require
+1. [Keras](https://keras.io/)
+2. [Caffe - docker](https://hub.docker.com/r/bvlc/caffe/) required if you would like to convert caffe model to keras model. You 
+ don't have to compile/install caffe on your local machine.
 
-How to Run
+## Converting Caffe model to Keras model
+Authors of [original implementation](https://github.com/ZheC/Realtime_Multi-Person_Pose_Estimation) released already trained caffe model 
+which you can use to extract weights data.   
 
-1. Clone the repository:
-```bash
-git clone https://github.com/your-username/gait-identification.git
-cd gait-identification
-```
+- Download caffe model `cd model; sh get_caffe_model.sh`
+- Dump caffe layers to numpy data `cd ..; docker run -v [absolute path to your keras_Realtime_Multi-Person_Pose_Estimation folder]:/workspace -it bvlc/caffe:cpu python dump_caffe_layers.py`
+  Note that docker accepts only absolute paths so you have to set the full path to the folder containing this project.
+- Convert caffe model (from numpy data) to keras model `python caffe_to_keras.py`  
 
-2. Ensure the model is placed here:
-```
-model/keras/model.h5
-```
+## Testing steps
+- Convert caffe model to keras model or download already converted keras model https://www.dropbox.com/s/llpxd14is7gyj0z/model.h5
+- Run the notebook `demo.ipynb`.
+- `python demo_image.py --image sample_images/ski.jpg` to run the picture demo. Result will be stored in the file result.png. You can use
+any image file as an input.
 
-3. Run the main script:
-```bash
-python df03a41a-706c-4edf-a1a9-abb84f32feb3.py --device 0 --model model/keras/model.h5
-```
+## Training steps
 
-4. Webcam will open. You will see:
-```
-✅ Human detected
-❌ No human detected
-```
 
-5. Press `q` to quit the live detection window.
+- Install gsutil `curl https://sdk.cloud.google.com | bash`. This is a really helpful tool for downloading large datasets. 
+- Download the data set (~25 GB) `cd dataset; sh get_dataset.sh`,
+- Download [COCO official toolbox](https://github.com/pdollar/coco) in `dataset/coco/` . 
+- `cd coco/PythonAPI; sudo python setup.py install` to install pycocotools.
+- Go to the "training" folder `cd ../../../training`.
+- Optionally, you can set the number of processes used to generate samples in parallel
+  `dataset.py` -> find the line `df = PrefetchDataZMQ(df, nr_proc=4)`
+- Run the command in terminal `python train_pose.py`
 
----
+## Changes
+**25/06/2018**
 
-What the Code Does
+- Performance improvement thanks to replacing c++ server rmpe_dataset_server
+with [tensorpack dataflow](http://tensorpack.readthedocs.io/tutorial/dataflow.html).
+Tensorpack is a very efficient library for preprocessing and data loading for tensorflow models.
+Dataflow object behaves like a normal Python iterator but it can generate samples using many processes.
+This significantly reduces latency when GPU waits for
+the next sample to be processed.
 
-- Loads a pre-trained pose estimation model
-- Reads webcam input frame-by-frame
-- Detects human pose using pose estimation
-- Tracks and displays humans with labeled keypoints
-- Displays and optionally saves the processed output
+- Masks generated on the fly - no need to run separate scripts to generate masks.
+In fact most of the mask were only positive (nothing to mask out)
 
----
+- Masking out the discarded persons who are too close to the main person in the
+picture, so that the network never sees unlabelled people. Previously we filtered out
+keypoints of such smaller persons but they were still visible in the picture.
 
-Optional Parameters
+- Incorrect handling of masks has been fixed. The rmpe_dataset_server
+sometimes assigned a wrong mask to the image, misleading the network.
 
-```bash
---frame_ratio 7              # Analyze every 7th frame
---process_speed 2            # Speed vs accuracy tradeoff
---out_name output_filename   # Save output video
---mirror False               # Don't mirror webcam input
-```
 
----
+**26/10/2017**
 
-Author
+Fixed problem with the training procedure.
+ Here are my results after training for 5 epochs = 25000 iterations (1 epoch is ~5000 batches)
+ The loss values are quite similar as in the original training - [output.txt](https://github.com/ZheC/Realtime_Multi-Person_Pose_Estimation/blob/master/training/example_loss/output.txt)
 
-**Nidheesh Kumar Nissankula**  
-B.Tech in CSE – Specialization in AI & Robotics  
-[LinkedIn](https://www.linkedin.com/in/nidheesh-kumar-nissankula-58a4972a8)
+<p align="center">
+<img src="https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/blob/master/readme/losses.png", width="700">
+</p>
+
+Results of running `demo_image --image sample_images/ski.jpg --model training/weights.best.h5` with model trained only 25000 iterations. Not too bad !!! Training on my single 1070 GPU took around 10 hours.
+
+<p align="center">
+<img src="https://github.com/michalfaber/keras_Realtime_Multi-Person_Pose_Estimation/blob/master/readme/5ep_result.png", width="300">
+</p>
+
+**22/10/2017**
+
+Augmented samples are fetched from the [server](https://github.com/michalfaber/rmpe_dataset_server). The network never sees the same image twice
+  which was a problem in previous approach (tool rmpe_dataset_transformer)
+  This allows you to run augmentation locally or on separate node.
+  You can start 2 instances, one serving training set and a second one serving validation set (on different port if locally)
+
+## Related repository
+- CVPR'16, [Convolutional Pose Machines](https://github.com/shihenw/convolutional-pose-machines-release).
+- CVPR'17, [Realtime Multi-Person Pose Estimation](https://github.com/ZheC/Realtime_Multi-Person_Pose_Estimation).
+
+## Citation
+Please cite the paper in your publications if it helps your research:    
+
+    @InProceedings{cao2017realtime,
+      title = {Realtime Multi-Person 2D Pose Estimation using Part Affinity Fields},
+      author = {Zhe Cao and Tomas Simon and Shih-En Wei and Yaser Sheikh},
+      booktitle = {The IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},
+      year = {2017}
+      }
+	  
