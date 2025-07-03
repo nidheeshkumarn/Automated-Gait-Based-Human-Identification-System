@@ -24,7 +24,7 @@ gait-identification/
 
 ---
 
-Download the Pretrained Keras Model through the below link:-
+Download the Pretrained Keras Model(model.h5) through the below link:-
 https://www.dropbox.com/s/llpxd14is7gyj0z/model.h5
 
 System Requirements
